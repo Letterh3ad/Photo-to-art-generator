@@ -3,6 +3,7 @@ import json
 import requests
 import os
 import shutil
+import subprocess
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QPushButton, QLabel, QFileDialog, 
     QMessageBox, QProgressBar, QTextEdit, QDialog, QDialogButtonBox, QComboBox, 
@@ -274,14 +275,27 @@ class PhotoRestylerWindow(QWidget):
         dialog.exec()
 
     def save_description(self, new_description):
-        """Save the edited description to the file."""
+        """
+        Save the edited description to the file. If the 'Hand Drawn' style is selected,
+        a brief prompt will be saved into image_restyle_description.txt.
+        """
         try:
+            # If 'Hand Drawn' is the selected style, override with a specific prompt
+            if self.selected_art_style == 'Hand Drawn':
+                new_description = "Transform the image into a hand-drawn artistic style with visible strokes and texture."
+
+            # Save the description to the description file path
             with open(self.description_file_path, 'w') as file:
                 file.write(new_description)
+            
+            # Update the stored description and the UI label
             self.generated_description = new_description
             self.generated_description_label.setText(new_description)
+            
+            print(f"Description saved successfully: {new_description}")
         except Exception as e:
             QMessageBox.warning(self, "Error", f"An error occurred while saving the description: {str(e)}")
+
 
     def restyle_img(self):
         """Handle the image restyling and clarity enhancement process."""
@@ -314,93 +328,111 @@ class PhotoRestylerWindow(QWidget):
         with open(self.description_file_path, 'w') as file:
             file.write(self.prompt_label.toPlainText())
 
-        self.progress_bar.setValue(30)
-        self.step_label.setText("Step: Sending request to DeepAI for restyling")
-
-        # Prepare files for API request
-        image_file = open(self.selected_image_path, 'rb')
-        description_file = open(self.description_file_path, 'rb')
-
-        # Print file paths and contents for debugging
-        print(f"Image file path: {self.selected_image_path}")
-        print(f"Description file path: {self.description_file_path}")
+        if self.select_art_style == "Hand Drawn":
+            # Call the function to handle hand drawn style
+            self.restyle_with_subprocess(self.selected_image)
+        else:
         
-        # Read and print contents of files
-        image_file_contents = image_file.read()
-        description_file_contents = description_file.read()
+            self.progress_bar.setValue(30)
+            self.step_label.setText("Step: Sending request to DeepAI for restyling")
 
-        # Ensure files are properly closed after reading
-        image_file.seek(0)  # Reset file pointer to beginning
-        description_file.seek(0)  # Reset file pointer to beginning
-        
-        print("Image file contents (first 100 bytes):", image_file_contents[:100])
-        print("Description file contents:", description_file_contents.decode('utf-8'))
+            # Prepare files for API request
+            image_file = open(self.selected_image_path, 'rb')
+            description_file = open(self.description_file_path, 'rb')
 
-        # Close files
-        image_file.close()
-        description_file.close()
+            # Print file paths and contents for debugging
+            print(f"Image file path: {self.selected_image_path}")
+            print(f"Description file path: {self.description_file_path}")
+            
+            # Read and print contents of files
+            image_file_contents = image_file.read()
+            description_file_contents = description_file.read()
 
-        # Send request to DeepAI for restyling
-        try:
-            response = requests.post(
-                "https://api.deepai.org/api/image-editor",
-                files={
-                    'image': open(self.selected_image_path, 'rb'),
-                    'text': open(self.description_file_path, 'rb'),
-                },
-                headers={'api-key': self.api_key}
-            )
-            self.progress_bar.setValue(70)
-            self.step_label.setText("Step: Processing response")
+            # Ensure files are properly closed after reading
+            image_file.seek(0)  # Reset file pointer to beginning
+            description_file.seek(0)  # Reset file pointer to beginning
+            
+            print("Image file contents (first 100 bytes):", image_file_contents[:100])
+            print("Description file contents:", description_file_contents.decode('utf-8'))
 
-            if response.status_code == 200:
-                response_data = response.json()
-                if 'output_url' in response_data:
-                    # Save restyled image before clarity enhancement
-                    restyled_image_url = response_data['output_url']
-                    self.restyled_image_path = self.download_image(restyled_image_url, 'restyled_image.jpg')
+            # Close files
+            image_file.close()
+            description_file.close()
 
-                    self.progress_bar.setValue(80)
-                    self.step_label.setText("Step: Enhancing image clarity")
+            # Send request to DeepAI for restyling
+            try:
+                response = requests.post(
+                    "https://api.deepai.org/api/image-editor",
+                    files={
+                        'image': open(self.selected_image_path, 'rb'),
+                        'text': open(self.description_file_path, 'rb'),
+                    },
+                    headers={'api-key': self.api_key}
+                )
+                self.progress_bar.setValue(70)
+                self.step_label.setText("Step: Processing response")
 
-                    # Enhance clarity using the Torch SRGAN API
-                    clarity_response = requests.post(
-                        "https://api.deepai.org/api/waifu2x",
-                        files={
-                            'image': open(self.restyled_image_path, 'rb'),
-                        },
-                        headers={'api-key': self.api_key}
-                    )
-                    
-                    if clarity_response.status_code == 200:
-                        clarity_data = clarity_response.json()
-                        if 'output_url' in clarity_data:
-                            clarity_image_url = clarity_data['output_url']
-                            self.enhanced_image_path = self.download_image(clarity_image_url, 'enhanced_image.jpg')
+                if response.status_code == 200:
+                    response_data = response.json()
+                    if 'output_url' in response_data:
+                        # Save restyled image before clarity enhancement
+                        restyled_image_url = response_data['output_url']
+                        self.restyled_image_path = self.download_image(restyled_image_url, 'restyled_image.jpg')
 
-                            self.progress_bar.setValue(90)
-                            self.step_label.setText("Step: Downloading enhanced image")
+                        self.progress_bar.setValue(80)
+                        self.step_label.setText("Step: Enhancing image clarity")
 
-                            pixmap = QPixmap(self.enhanced_image_path)
-                            self.edited_image_label.setPixmap(pixmap.scaled(200, 200, Qt.KeepAspectRatio))
-                            self.save_button.setVisible(True)
+                        # Enhance clarity using the Torch SRGAN API
+                        clarity_response = requests.post(
+                            "https://api.deepai.org/api/waifu2x",
+                            files={
+                                'image': open(self.restyled_image_path, 'rb'),
+                            },
+                            headers={'api-key': self.api_key}
+                        )
+                        
+                        if clarity_response.status_code == 200:
+                            clarity_data = clarity_response.json()
+                            if 'output_url' in clarity_data:
+                                clarity_image_url = clarity_data['output_url']
+                                self.enhanced_image_path = self.download_image(clarity_image_url, 'enhanced_image.jpg')
 
+                                self.progress_bar.setValue(90)
+                                self.step_label.setText("Step: Downloading enhanced image")
+
+                                pixmap = QPixmap(self.enhanced_image_path)
+                                self.edited_image_label.setPixmap(pixmap.scaled(200, 200, Qt.KeepAspectRatio))
+                                self.save_button.setVisible(True)
+
+                            else:
+                                QMessageBox.warning(self, "Error", "No output URL found in the clarity response.")
                         else:
-                            QMessageBox.warning(self, "Error", "No output URL found in the clarity response.")
+                            QMessageBox.warning(self, "Error", f"Failed to enhance image clarity: {clarity_response.status_code}")
+
                     else:
-                        QMessageBox.warning(self, "Error", f"Failed to enhance image clarity: {clarity_response.status_code}")
-
+                        QMessageBox.warning(self, "Error", "No output URL found in the restyling response.")
                 else:
-                    QMessageBox.warning(self, "Error", "No output URL found in the restyling response.")
-            else:
-                QMessageBox.warning(self, "Error", f"Failed to restyle the image: {response.status_code}")
+                    QMessageBox.warning(self, "Error", f"Failed to restyle the image: {response.status_code}")
 
-        except requests.RequestException as e:
-            QMessageBox.warning(self, "Error", f"An error occurred while sending the request: {str(e)}")
-        finally:
-            self.restyle_in_progress = False
-            self.progress_bar.setVisible(False)
-            self.step_label.setVisible(False)
+            except requests.RequestException as e:
+                QMessageBox.warning(self, "Error", f"An error occurred while sending the request: {str(e)}")
+            finally:
+                self.restyle_in_progress = False
+                self.progress_bar.setVisible(False)
+                self.step_label.setVisible(False)
+
+    def restyle_with_subprocess(self, image_path, text_path):
+        """
+        Function to handle the "Hand Drawn" style using subprocess to run the external script.
+        """
+        hand_drawn_script_path = os.path.join(os.getcwd(), 'restyle_pipelines', 'hand_drawn.py')
+        
+        try:
+            # Run the external script via subprocess, passing the image and text paths
+            subprocess.run(['python', hand_drawn_script_path, image_path, text_path], check=True)
+            print("Successfully restyled the image using the Hand Drawn style.")
+        except subprocess.CalledProcessError as e:
+            print(f"Error running the hand drawn script: {e}")
 
     def download_image(self, image_url, filename):
         """Download an image from the provided URL and save it with the given filename."""

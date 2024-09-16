@@ -62,5 +62,9 @@
     {
         "name": "Chiaroscuro",
         "description": "Enhance the image with Chiaroscuro, emphasizing dramatic contrasts between light and shadow. Focus on depth, utilizing strong lighting and deep shadows for a striking effect."
+    },
+    {
+        "name": "Hand Drawn",
+        "description": "Transform the image into a hand-drawn artistic style with visible strokes and texture."
     }
 ]
