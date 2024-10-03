@@ -1,0 +1,2 @@
+openai-key: sk-sul1KHnl7gEcgtxZZ3OQzJ6bgxFyuMVSKws4mqTSlKT3BlbkFJNaK-xSxAoAAJho0qQuxmhcyGe8G1Raax7qoPrAAC8A
+deepai-key: 3e484e71-6b5f-41d8-a788-597c16653737

@@ -1,1 +1,1 @@
-Transform the image into a hand-drawn artistic style with visible strokes and texture.
+Apply a hand-drawn art style to the image, emphasizing bold, visible brushstrokes and rich textures to enhance artistic qualities.

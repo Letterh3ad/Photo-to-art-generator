@@ -53,31 +53,60 @@ def download_image(image_url, save_path):
         return None
 
 # Function to apply hand-drawn effect using Pillow
+from PIL import Image, ImageFilter, ImageOps, ImageEnhance
+import numpy as np
+
+from PIL import Image, ImageFilter, ImageOps, ImageEnhance
+
 def apply_hand_drawn_effect(image_path):
     """
-    Applies a hand-drawn effect to the image using Pillow.
+    Applies a hand-drawn effect to the image while preserving original colors.
     """
     try:
-        # Open the image using Pillow
-        img = Image.open(image_path)
-
-        # Step 1: Apply a contour filter to simulate hand-drawn outlines
-        hand_drawn_img = img.filter(ImageFilter.CONTOUR)
-
-        # Step 2: Apply a detail enhancement filter to add more texture
-        hand_drawn_img = hand_drawn_img.filter(ImageFilter.DETAIL)
-
+        # Open the original image using Pillow
+        original_img = Image.open(image_path)
+        
+        # Convert the image to grayscale for the hand-drawn effect
+        gray_img = ImageOps.grayscale(original_img)
+        
+        # Apply a contour filter to simulate hand-drawn outlines
+        hand_drawn_img = gray_img.filter(ImageFilter.CONTOUR)
+        
+        # Add noise to the image to simulate imperfections
+        noise = Image.effect_noise(hand_drawn_img.size, 15)
+        noise = ImageOps.grayscale(noise)
+        noise_img = Image.blend(hand_drawn_img, noise, alpha=0.2)
+        
+        # Apply a slight distortion to simulate hand-drawn variability
+        distorted_img = noise_img.transform(
+            noise_img.size, 
+            Image.AFFINE, 
+            (1, 0.1, 0, 0.1, 1, 0), 
+            resample=Image.BILINEAR
+        )
+        
+        # Apply a detail enhancement filter to add more texture
+        textured_img = distorted_img.filter(ImageFilter.DETAIL)
+        
+        # Convert the hand-drawn image back to RGB
+        textured_img = textured_img.convert("RGB")
+        
+        # Blend the hand-drawn effect with the original image
+        blended_img = Image.blend(original_img, textured_img, alpha=0.5)
+        
         # Create the output file path
         base, ext = os.path.splitext(image_path)
         output_image_path = f"{base}_hand_drawn{ext}"
-
-        # Step 3: Save the transformed image
-        hand_drawn_img.save(output_image_path)
+        
+        # Save the transformed image
+        blended_img.save(output_image_path)
         print(f"Hand-drawn effect applied. Image saved to: {output_image_path}")
         return output_image_path
     except Exception as e:
         print(f"Error applying hand-drawn effect: {e}")
         return None
+
+
 
 # Main function to execute the complete process
 def main(image_path, text_path, api_key):
